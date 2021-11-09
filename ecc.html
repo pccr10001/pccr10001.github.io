@@ -11,7 +11,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/crypto-js.js"
         integrity="sha256-xoJklEMhY9dP0n54rQEaE9VeRnBEHNSfyfHlKkr9KNk=" crossorigin="anonymous"></script>
-
+    <script src="https://cdn.jsdelivr.net/gh/emn178/js-sha1/build/sha1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/js-sha3@0.8.0/build/sha3.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/js-sha256@0.9.0/build/sha256.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/crypto-js@3.1.9-1/index.min.js"></script>
@@ -69,6 +69,7 @@
         Message: <input id="msg" class="privKey"> <input type="checkbox" id="msg_hex"> <label
             for="msg_hex">Hex</label><br>
         Hash: <input id="hash" disabled="" class="privKey">
+        <button onclick="generateHash('sha1')">SHA-256</button>
         <button onclick="generateHash('sha')">SHA-256</button>
         <button onclick="generateHash('sha3')">SHA3-256</button>
         <button onclick="generateHash('keccak')">KECCAK-256</button>
@@ -121,6 +122,8 @@
             msg = isMsgHex() ? hexToBytes(msg) : msg;
             if (hash == 'sha') {
                 $("#hash").val(sha256(msg));
+            } else if (hash == 'sha1') {
+                $("#hash").val(sha1(msg));
             } else if (hash == 'sha3') {
                 $("#hash").val(sha3_256(msg));
             } else if (hash == 'keccak') {
