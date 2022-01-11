@@ -1,1 +1,0 @@
-"use strict";(self.webpackChunkteslabtapi=self.webpackChunkteslabtapi||[]).push([[4195],{2841:function(t,e,a){a.r(e);var n=a(7294),s=a(6775),u=a(4996);e.default=function(){return n.createElement(s.l_,{to:(0,u.Z)("/docs/intro")})}}}]);

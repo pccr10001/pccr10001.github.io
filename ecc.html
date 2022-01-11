@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>ECC 4 Web</title>
+    <script src="/ecc/ec.js"></script>
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/crypto-js.js"
+        integrity="sha256-xoJklEMhY9dP0n54rQEaE9VeRnBEHNSfyfHlKkr9KNk=" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/gh/emn178/js-sha1/build/sha1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/js-sha3@0.8.0/build/sha3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/js-sha256@0.9.0/build/sha256.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/crypto-js@3.1.9-1/index.min.js"></script>
+
+
+    <link href="https://fonts.googleapis.com/css?family=Source+Code+Pro&display=swap" rel="stylesheet">
+
+
+    <style>
+        input {
+            margin-top: 10px;
+            font-family: 'Source Code Pro', monospace;
+        }
+
+        .privKey {
+            width: 550px;
+        }
+
+        .pubKey {
+            width: 1100px;
+        }
+    </style>
+
+</head>
+
+<body>
+    <div>
+        Curve: <select id="curve">
+            <option value="p256" selected=true>secp256r1</option>
+            <option value="secp256k1">secp256k1</option>
+        </select>
+        <input type="checkbox" id="pub_prefix"> <label for="pub_prefix">Add Uncompressed format Prefix (0x04)</label>
+    </div>
+    <div>
+        Private Key 1:&nbsp;<input id="priv_key" class="privKey"> <button onclick="generatePrivKey(0)">Generate</button>
+        <button onclick="generatePublicKey(0)">To Public Key</button><br>
+        Public Key 1:&nbsp;&nbsp;<input id="pub_key" onchange="" class="pubKey">
+
+    </div>
+    <div>
+        Private Key 2:&nbsp;<input id="priv_key_2" class="privKey"> <button
+            onclick="generatePrivKey(1)">Generate</button> <button onclick="generatePublicKey(1)">To Public
+            Key</button><br>
+        Public Key 2:&nbsp;&nbsp;<input id="pub_key_2" onchange="" class="pubKey">
+    </div>
+
+    <div>
+        ECDH Priv 1 with Pub 2: <input id="ecdh_12" class="privKey"> <button
+            onclick="generateEcdh(0,1)">Generate</button><br>
+        ECDH Priv 2 with Pub 1: <input id="ecdh_21" class="privKey"> <button
+            onclick="generateEcdh(1,0)">Generate</button>
+    </div>
+
+    <div>
+        Message: <input id="msg" class="privKey"> <input type="checkbox" id="msg_hex"> <label
+            for="msg_hex">Hex</label><br>
+        Hash: <input id="hash" disabled="" class="privKey">
+        <button onclick="generateHash('sha1')">SHA-1</button>
+        <button onclick="generateHash('sha')">SHA-256</button>
+        <button onclick="generateHash('sha3')">SHA3-256</button>
+        <button onclick="generateHash('keccak')">KECCAK-256</button>
+        <button onclick="$('#hash').attr('disabled','')">Plain Message</button>
+        <br>
+
+        ECDSA Signature 1: <input id="ecdsa_1" class="pubKey"> <button onclick="generateEcdsa(0)">Generate</button><br>
+        Verify: <input id="verify_ecdsa_1" style="width: 50px;"><button onclick="verifyEcdsa(0)">Verify</button><br>
+        ECDSA Signature 2: <input id="ecdsa_2" class="pubKey"> <button onclick="generateEcdsa(1)">Generate</button><br>
+        Verify: <input id="verify_ecdsa_2" style="width: 50px;"><button onclick="verifyEcdsa(1)">Verify</button><br>
+    </div>
+
+    <script>
+        function generatePublicKey(key) {
+            var privKey = getPrivKey(key);
+            if (privKey.length != 64) return;
+            var ec = new elliptic.ec($('#curve option:selected').val());
+
+            var ecPrivKey = ec.keyFromPrivate(privKey, "hex");
+            setPubKey(key, (isAddPrefix() ? "04" : "") + toHexString(ecPrivKey.getPublic().getX().toArray()) +
+                toHexString(ecPrivKey.getPublic().getY().toArray()))
+
+        }
+
+        function generatePrivKey(key) {
+            var privKey = getRandomBytes(32);
+            var ec = new elliptic.ec($('#curve option:selected').val());
+            setPrivKey(key, toHexString(privKey));
+
+            var ecPrivKey = ec.keyFromPrivate(privKey);
+            setPubKey(key, (isAddPrefix() ? "04" : "") + toHexString(ecPrivKey.getPublic().getX().toArray()) +
+                toHexString(ecPrivKey.getPublic().getY().toArray()))
+
+
+        }
+
+        function generateEcdh(priv, pub) {
+            var privKey = getPrivKey(priv);
+            var pubKey = getPubKey(pub);
+            var ec = new elliptic.ec($('#curve option:selected').val());
+
+            var ecPrivKey = ec.keyFromPrivate(privKey, "hex");
+            var ecPubKey = ec.keyFromPublic((pubKey.length == 128 ? "04" : "") + pubKey, "hex");
+            var sharedKey = ecPrivKey.derive(ecPubKey.getPublic()).toArray();
+            $(priv == 0 ? "#ecdh_12" : "#ecdh_21").val(toHexString(sharedKey));
+        }
+
+        function generateHash(hash) {
+            var msg = $("#msg").val();
+            msg = isMsgHex() ? hexToBytes(msg) : msg;
+            if (hash == 'sha') {
+                $("#hash").val(sha256(msg));
+            } else if (hash == 'sha1') {
+                $("#hash").val(sha1(msg));
+            } else if (hash == 'sha3') {
+                $("#hash").val(sha3_256(msg));
+            } else if (hash == 'keccak') {
+                $("#hash").val(keccak_256(msg));
+            }
+
+            $("#hash").removeAttr("disabled");
+        }
+
+        function generateEcdsa(key) {
+            var privKey = getPrivKey(key);
+            var ec = new elliptic.ec($('#curve option:selected').val());
+            var ecPrivKey = ec.keyFromPrivate(privKey, "hex");
+            var sign = ecPrivKey.sign(getSignMsg());
+            setEcdsa(key, toHexString(sign.r.toArray()) +
+                toHexString(sign.s.toArray()));
+        }
+
+        function verifyEcdsa(key) {
+            var privKey = getPrivKey(key);
+            var ec = new elliptic.ec($('#curve option:selected').val());
+            var ecPrivKey = ec.keyFromPrivate(privKey, "hex");
+            var sign = ecPrivKey.verify(getSignMsg(), {r: getEcdsa(key).substr(0, 64), s:getEcdsa(key).substr(64)});
+            setEcdsaVerify(key, sign?"Pass":"Error");
+        }
+
+        function getSignMsg() {
+            if ($("#hash").is('[disabled]')) {
+                var msg = $("#msg").val();
+                return isMsgHex() ? hexToBytes(msg) : new TextEncoder("utf-8").encode(msg);
+            } else {
+                return hexToBytes($("#hash").val());
+            }
+        }
+
+        function getPrivKey(input) {
+            return $((input == 0 ? "#priv_key" : "#priv_key_2")).val();
+        }
+
+        function setPubKey(input, data) {
+            $((input == 0 ? "#pub_key" : "#pub_key_2")).val(data);
+        }
+
+        function getEcdsa(input) {
+            return $((input == 0 ? "#ecdsa_1" : "#ecdsa_2")).val();
+        }
+
+        function setEcdsa(input, data) {
+            $((input == 0 ? "#ecdsa_1" : "#ecdsa_2")).val(data);
+        }
+
+        function setEcdsaVerify(input, data) {
+            $((input == 0 ? "#verify_ecdsa_1" : "#verify_ecdsa_2")).val(data);
+        }
+
+
+        function setPrivKey(input, data) {
+            $((input == 0 ? "#priv_key" : "#priv_key_2")).val(data);
+        }
+
+        function getPubKey(input) {
+            return $((input == 0 ? "#pub_key" : "#pub_key_2")).val();
+        }
+
+        function isAddPrefix() {
+            return $("#pub_prefix").prop("checked");
+        }
+
+        function isMsgHex() {
+            return $("#msg_hex").prop("checked");
+        }
+
+        let getRandomBytes = (
+            (typeof self !== 'undefined' && (self.crypto || self.msCrypto)) ?
+            function () { // Browsers
+                var crypto = (self.crypto || self.msCrypto),
+                    QUOTA = 65536;
+                return function (n) {
+                    var a = new Uint8Array(n);
+                    for (var i = 0; i < n; i += QUOTA) {
+                        crypto.getRandomValues(a.subarray(i, i + Math.min(n - i, QUOTA)));
+                    }
+                    return a;
+                };
+            } :
+            function () { // Node
+                return require("crypto").randomBytes;
+            }
+        )();
+
+        function appendBuffer(buffer1, buffer2) {
+            var tmp = new Uint8Array(buffer1.byteLength + buffer2.byteLength);
+            tmp.set(buffer1, 0);
+            tmp.set(buffer2, buffer1.byteLength);
+            return tmp;
+        }
+
+        function byteArrayToWordArray(ba) {
+            var wa = [],
+                i;
+            for (i = 0; i < ba.length; i++) {
+                wa[(i / 4) | 0] |= ba[i] << (24 - 8 * i);
+            }
+
+            return CryptoJS.lib.WordArray.create(wa, ba.length);
+        }
+
+        function wordToByteArray(word, length) {
+            var ba = [],
+                i,
+                xFF = 0xFF;
+            if (length > 0)
+                ba.push(word >>> 24);
+            if (length > 1)
+                ba.push((word >>> 16) & xFF);
+            if (length > 2)
+                ba.push((word >>> 8) & xFF);
+            if (length > 3)
+                ba.push(word & xFF);
+
+            return ba;
+        }
+
+        function wordArrayToByteArray(wordArray, length) {
+            if (wordArray.hasOwnProperty("sigBytes") && wordArray.hasOwnProperty("words")) {
+                length = wordArray.sigBytes;
+                wordArray = wordArray.words;
+            }
+
+            var result = [],
+                bytes
+            i = 0;
+            while (length > 0) {
+                bytes = wordToByteArray(wordArray[i], Math.min(4, length));
+                length -= bytes.length;
+                result.push(bytes);
+                i++;
+            }
+            return [].concat.apply([], result);
+        }
+
+        function toHexString(byteArray) {
+            return Array.from(byteArray, function (byte) {
+                return ('0' + (byte & 0xFF).toString(16)).slice(-2);
+            }).join('')
+        }
+
+        function hexToBytes(hex) {
+            for (var bytes = [], c = 0; c < hex.length; c += 2)
+                bytes.push(parseInt(hex.substr(c, 2), 16));
+            return bytes;
+        }
+    </script>
+</body>
+
+</html>
