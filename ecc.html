@@ -73,12 +73,13 @@
         <button onclick="generateHash('sha')">SHA-256</button>
         <button onclick="generateHash('sha3')">SHA3-256</button>
         <button onclick="generateHash('keccak')">KECCAK-256</button>
+        <button onclick="generateHash('ethsign')">Ethereum Signature v1</button>
         <button onclick="$('#hash').attr('disabled','')">Plain Message</button>
         <br>
 
-        ECDSA Signature 1: <input id="ecdsa_1" class="pubKey"> <button onclick="generateEcdsa(0)">Generate</button><br>
+        ECDSA Signature 1: <input id="ecdsa_1" class="pubKey"> &nbsp;V:&nbsp;<input id="ecdsa_recid_1" style="width: 20px;">&nbsp;&nbsp;<button onclick="generateEcdsa(0)">Generate</button><br>
         Verify: <input id="verify_ecdsa_1" style="width: 50px;"><button onclick="verifyEcdsa(0)">Verify</button><br>
-        ECDSA Signature 2: <input id="ecdsa_2" class="pubKey"> <button onclick="generateEcdsa(1)">Generate</button><br>
+        ECDSA Signature 2: <input id="ecdsa_2" class="pubKey"> &nbsp;V:&nbsp;<input id="ecdsa_recid_2" style="width: 20px;">&nbsp;&nbsp;<button onclick="generateEcdsa(1)">Generate</button><br>
         Verify: <input id="verify_ecdsa_2" style="width: 50px;"><button onclick="verifyEcdsa(1)">Verify</button><br>
     </div>
 
@@ -128,6 +129,9 @@
                 $("#hash").val(sha3_256(msg));
             } else if (hash == 'keccak') {
                 $("#hash").val(keccak_256(msg));
+            }else if(hash == "ethsign"){
+                var prefix = String.fromCharCode(25)+"Ethereum Signed Message:\n";
+                $("#hash").val(keccak_256(prefix + msg.length + msg));
             }
 
             $("#hash").removeAttr("disabled");
@@ -138,8 +142,10 @@
             var ec = new elliptic.ec($('#curve option:selected').val());
             var ecPrivKey = ec.keyFromPrivate(privKey, "hex");
             var sign = ecPrivKey.sign(getSignMsg());
+            var recid = ec.getKeyRecoveryParam(getSignMsg(), sign, ecPrivKey.getPublic())
             setEcdsa(key, toHexString(sign.r.toArray()) +
-                toHexString(sign.s.toArray()));
+                toHexString(sign.s.toArray()), recid+27);
+            
         }
 
         function verifyEcdsa(key) {
@@ -171,8 +177,9 @@
             return $((input == 0 ? "#ecdsa_1" : "#ecdsa_2")).val();
         }
 
-        function setEcdsa(input, data) {
+        function setEcdsa(input, data, recid) {
             $((input == 0 ? "#ecdsa_1" : "#ecdsa_2")).val(data);
+            $((input == 0 ? "#ecdsa_recid_1" : "#ecdsa_recid_2")).val(recid);
         }
 
         function setEcdsaVerify(input, data) {
