@@ -31,7 +31,11 @@
       >
         <option id="no_lines">No Line IDs found.</option>
       </select>
-      &nbsp;<button onclick="getLine()">Get Line Info</button>
+      &nbsp;<button onclick="getLine()">Get Line Info</button> &nbsp;<button
+        onclick="resetLine()"
+      >
+        Reset Line
+      </button>
     </div>
 
     <div>
@@ -42,7 +46,7 @@
       <div><a>Modem SWVersion: </a><a id="swver"></a></div>
       <div><a>GPON SN: </a><a id="sn"></a></div>
       <div><a>Status: </a><a id="status"></a></div>
-      <div><a>Link:</a><a id="link"></a></div>
+      <div><a>Link: </a><a id="link"></a></div>
     </div>
     <div>
       <br />
@@ -75,12 +79,12 @@
               l = Math.floor((u - h) / 1e3),
               d = Math.floor(l / 100) - 1 + "" + (Math.floor(l / 100) + 1),
               g = aesDecryptHex(r.list, r.key, d);
-              console.log(u);
-              console.log(h);
-              
-              console.log(l);
-              console.log(d);
-              console.log(g);
+            console.log(u);
+            console.log(h);
+
+            console.log(l);
+            console.log(d);
+            console.log(g);
             return JSON.parse(g);
           })
           .then((r) => {
@@ -132,16 +136,12 @@
 
       function getLine() {
         var lineId = $("#lines option:selected").val();
-        var slid = lineId.substring(
-          lineId.length - 10,
-          lineId.length
-        );
+        var slid = lineId.substring(lineId.length - 10, lineId.length);
         $("#slid").text(slid);
         $("#slid_hex").text(
           aesjs.utils.hex.fromBytes(aesjs.utils.utf8.toBytes(slid))
         );
 
-        getLineStatus(lineId);
         fetch("https://csapp.cht.com.tw/CSAPP/SSO/Trouble/getLineInfo", {
           method: "POST",
           body: "{}",
@@ -154,10 +154,19 @@
         })
           .then((r) => r.json())
           .then((r) => {
+            if (r.result == -1) {
+              throw r.msg;
+            }
             $("#vlan").text(r.data.vlan);
             $("#olt").text(r.data.vendor);
+            getLineStatus(lineId);
           })
           .catch((e) => {
+            if (e.hasOwnProperty("msg")) {
+              Swal.fire("Error occured", e.msg, "success");
+            } else {
+              Swal.fire("Error occured", e, "success");
+            }
             console.log(e);
           });
       }
@@ -174,14 +183,36 @@
         })
           .then((r) => r.json())
           .then((r) => {
+            if (r.result == -1) {
+              throw r.msg;
+            }
             $("#sn").text(r.data.settings[0].onuSerial);
             $("#swver").text(r.data.settings[0].onuVersion);
             $("#status").text(r.data.settings[0].regStat);
             $("#link").text(r.data.settings[0].link);
           })
           .catch((e) => {
+            if (e.hasOwnProperty("msg")) {
+              Swal.fire("Error occured", e.msg, "success");
+            } else {
+              Swal.fire("Error occured", e, "success");
+            }
             console.log(e);
           });
+      }
+
+      function resetLine(lineId) {
+        fetch("https://csapp.cht.com.tw/CSAPP/SSO/Trouble/ResetDeviceNo", {
+          method: "POST",
+          headers: {
+            otpw: $("#otpw").val(),
+            deviceno: id,
+            "content-type": "application/json",
+          },
+          mode: "cors",
+        }).then(() => {
+          Swal.fire("Success", "Line reset.", "success");
+        });
       }
 
       function aesDecryptHex(cipher, key, iv) {
@@ -280,5 +311,6 @@
       type="text/javascript"
       src="https://cdn.rawgit.com/ricmoo/aes-js/e27b99df/index.js"
     ></script>
+    <script src="//cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   </body>
 </html>
