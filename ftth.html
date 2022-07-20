@@ -204,9 +204,10 @@
       function resetLine(lineId) {
         fetch("https://csapp.cht.com.tw/CSAPP/SSO/Trouble/ResetDeviceNo", {
           method: "POST",
+          body: "{}",
           headers: {
             otpw: $("#otpw").val(),
-            deviceno: id,
+            deviceno: lineId,
             "content-type": "application/json",
           },
           mode: "cors",
