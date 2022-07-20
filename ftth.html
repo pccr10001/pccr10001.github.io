@@ -211,8 +211,8 @@
             "content-type": "application/json",
           },
           mode: "cors",
-        }).then(() => {
-          Swal.fire("Success", "Line reset.", "success");
+        })then((r)=>r.json()).then((r) => {
+               Swal.fire("Success", r.msg, "success");
         });
       }
 
