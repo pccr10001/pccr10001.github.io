@@ -207,7 +207,7 @@
           body: "{}",
           headers: {
             otpw: $("#otpw").val(),
-            deviceno: lineId,
+            deviceno: $("#lines option:selected").val(),
             "content-type": "application/json",
           },
           mode: "cors",
