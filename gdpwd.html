@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <div>
+        <div>
+            <input id="email" name="email" width="200px">
+        </div>
+        <div>
+            <input id="pwd" name="pwd" width="200px">
+        </div>
+    </div>
+    <div>
+        <button onclick="getPwd()">Get</button>
+    </div>
+    <div>
+        <div id="result"></div>
+    </div>
+    <script>
+        function getPwd() {
+            $("#result")[0].innerHTML="<p>pwd: "+getPassword($("#email").val(), $("#pwd").val())+"</p><p>npwd: "+ getNPassword($("#email").val(), $("#pwd").val()) +"</p>";
+        }
+
+        function setHash(l, h, p) {
+            const i = this;
+            const s = [1518500249, 1859775393, 2400959708, 3395469782];
+            null == p && (p = 2), (h = typeof h > "u" || h) && (l = getEncode(l));
+            l += String.fromCharCode(128);
+            const a = Math.ceil((l.length / 4 + 2) / 16),
+                u = new Array(a);
+            for (let $ = 0; $ < a; $++) {
+                u[$] = new Array(16);
+                for (let W = 0; W < 16; W++) u[$][W] = l.charCodeAt(64 * $ + 4 * W) << 24 | l.charCodeAt(64 * $ + 4 *
+                    W + 1) << 16 | l.charCodeAt(64 * $ + 4 * W + 2) << 8 | l.charCodeAt(64 * $ + 4 * W + 3)
+            }
+            u[a - 1][14] = 8 * (l.length - 1) / Math.pow(2, 32), u[a - 1][14] = Math.floor(u[a - 1][14]), u[a - 1][15] =
+                8 * (l.length - 1) & 4294967295;
+            let d = 1732584193,
+                r = 4023233417,
+                m = 2562383102,
+                _ = 271733878,
+                T = 3285377520;
+            const k = new Array(80);
+            let O, C, M, A, j;
+            for (let $ = 0; $ < a; $++) {
+                for (let W = 0; W < 16; W++) k[W] = u[$][W];
+                for (let W = 16; W < 80; W++) k[W] = getROTL(k[W - 3] ^ k[W - 8] ^ k[W - 14] ^ k[W - 16], 1);
+                O = d, C = r, M = m, A = _, j = T;
+                for (let W = 0; W < 80; W++) {
+                    const R = Math.floor(W / 20),
+                        E = getROTL(O, 5) + getF(R, C, M, A) + j + s[R] + k[W] & 4294967295;
+                    j = A, A = M, M = getROTL(C, 30), C = O, O = E
+                }
+                d = d + O & 4294967295, r = r + C & 4294967295, m = m + M & 4294967295, _ = _ + A & 4294967295, T = T +
+                    j & 4294967295
+            }
+            let D = getToHexStr(d) + getToHexStr(r) + getToHexStr(m) + getToHexStr(_) + getToHexStr(T);
+            return 1 === p ? D = D.toLowerCase() : 2 === p && (D = D.toUpperCase()), D
+        }
+
+        function getHash(l, h, p) {
+            const i = this;
+            let s = "";
+
+            if (0 === p) {
+                s = setHash(l, !0, null);
+                const c = [s.substr(0, 4), s.substr(4, s.length - 8), s.substr(s.length - 4, 4)];
+                s = c[0].split("").reverse().join("") + c[1].split("").reverse().join("") + c[2].split("").reverse()
+                    .join("")
+
+            } else {
+                h = h.split("").reverse().join(""), s = setHash(l + h, !0, null);
+                for (let c = 1; c < p; c++) s = setHash(s + h, !0, null)
+            }
+            return s
+        }
+
+        function getEncode(l) {
+            let h = l.replace(/[\u0080-\u07ff]/g, p => {
+                const i = p.charCodeAt(0);
+                return String.fromCharCode(192 | i >> 6, 128 | 63 & i)
+            });
+            return h = h.replace(/[\u0800-\uffff]/g, p => {
+                const i = p.charCodeAt(0);
+                return String.fromCharCode(224 | i >> 12, 128 | i >> 6 & 63, 128 | 63 & i)
+            }), h
+        }
+
+        function getF(l, h, p, i) {
+            switch (l) {
+                case 0:
+                    return h & p ^ ~h & i;
+                case 1:
+                case 3:
+                    return h ^ p ^ i;
+                case 2:
+                    return h & p ^ h & i ^ p & i
+            }
+        }
+
+        function getROTL(l, h) {
+            return l << h | l >>> 32 - h
+        }
+
+        function getToHexStr(l) {
+            let p, h = "";
+            for (let i = 7; i >= 0; i--) p = l >>> 4 * i & 15, h += p.toString(16);
+            return h
+        }
+
+        function getPassword(email, password) {
+            const I = "5unf15h" + email + "D4740N";
+            return getHash(password, I, 7).toUpperCase()
+        }
+
+        function getNPassword(email, password) {
+            const I = "5unf15h" + email + "D4740N";
+            return getHash(password, I, 0).toUpperCase()
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"
+        integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</body>
+
+</html>
