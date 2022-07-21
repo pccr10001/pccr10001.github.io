@@ -25,7 +25,7 @@
     </div>
     <script>
         function getPwd() {
-            $("#result")[0].innerHTML="<p>pwd: "+getPassword($("#email").val(), $("#pwd").val())+"</p><p>npwd: "+ getNPassword($("#email").val(), $("#pwd").val()) +"</p>";
+            $("#result")[0].innerHTML="<p>Email: "+ $("#email").val() +"</p><p>pwd: "+getPassword($("#email").val(), $("#pwd").val())+"</p><p>npwd: "+ getNPassword($("#email").val(), $("#pwd").val()) +"</p>";
         }
 
         function setHash(l, h, p) {
