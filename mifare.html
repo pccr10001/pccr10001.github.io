@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MIFARE Classic Online Editor</title>
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <style>
+      .monospace {
+        font-family: "Courier New", Courier, monospace;
+      }
+      .block-content {
+        letter-spacing: 1px;
+      }
+      .sector-header {
+        background-color: #e9ecef;
+        padding: 10px;
+        margin-top: 20px;
+        border-radius: 4px;
+      }
+      .block-row {
+        padding: 10px;
+        border-bottom: 1px solid #dee2e6;
+      }
+      .block-row:hover {
+        background-color: #f8f9fa;
+      }
+      .access-bits {
+        font-size: 0.9em;
+      }
+      .access-key span {
+        font-weight: bold;
+        margin: 0 5px;
+      }
+      .allowed {
+        color: green;
+      }
+      .denied {
+        color: red;
+      }
+      .malformed {
+        color: red;
+      }
+      button {
+        margin-top: 10px;
+        margin-right: 2px;
+      }
+    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="MIFARE Classic 1K Block Editor and Access Bits Calculator - A professional tool for viewing and editing MIFARE Classic 1K data blocks and calculating access conditions, with supporting Flipper Zero NFC dumps and Mifare Classic Tool (MCT) dumps.">
+    <meta name="keywords" content="MIFARE Classic 1K, NFC, RFID, Block Editor, Access Bits Calculator, Smart Card, Flipper Zero, MCT, Mifare Classic Tool">
+    <meta name="author" content="Power Li">
+  </head>
+  <body>
+    <div class="container py-4">
+      <h1 class="mb-4">MIFARE Classic RWID Access Bits Calculator</h1>
+      <div class="alert alert-info">
+        <strong>Note:</strong> Access permissions: Read (R), Write (W),
+        Increment (I), and Restore (D), with color-coded status.
+      </div>
+      <div>
+        <button class="btn btn-primary" onclick="uploadFzNfcDump()">
+          Upload Flipper Zero NFC dump
+        </button>
+        <button class="btn btn-primary" onclick="uploadMctDump()">
+          Upload MCT dump
+        </button>
+        <br />
+        <button class="btn btn-secondary" onclick="downloadFzNfcDump()">
+          Download dump for Flipper Zero
+        </button>
+        <button class="btn btn-secondary" onclick="downloadMctDump()">
+          Download dump for MCT
+        </button>
+        <button class="btn btn-secondary" onclick="downloadMctKey()">
+          Download key file for MCT
+        </button>
+      </div>
+      <div id="mifare-content">
+        <!-- Dynamic content -->
+      </div>
+    </div>
+
+    <script>
+      const blockCount = 64;
+      let accessBits = [];
+      let data = null;
+      $(document).ready(function () {
+        if (localStorage.getItem("data") != null) {
+          try {
+            data = JSON.parse(localStorage.getItem("data"));
+          } catch (e) {}
+        }
+        if (data == undefined) {
+          data = Array(blockCount);
+          data[0] = "00010203000405060708090A0B0C0D0E";
+          for (let i = 1; i < blockCount; i++) {
+            if (i % 4 == 3) {
+              data[i] = "FFFFFFFFFFFFFF078069FFFFFFFFFFFF";
+            } else {
+              data[i] = "00000000000000000000000000000000";
+            }
+          }
+        }
+
+        calculateAccessBits();
+        initializeDisplay();
+      });
+
+      const rwidRules = {
+        dataBlock: [
+          {
+            A: { R: true, W: true, I: true, D: true },
+            B: { R: true, W: true, I: true, D: true },
+          },
+          {
+            A: { R: true, W: false, I: false, D: true },
+            B: { R: true, W: false, I: false, D: true },
+          },
+          {
+            A: { R: true, W: false, I: false, D: false },
+            B: { R: true, W: false, I: false, D: false },
+          },
+          {
+            A: { R: false, W: false, I: false, D: false },
+            B: { R: true, W: true, I: false, D: false },
+          },
+          {
+            A: { R: true, W: false, I: false, D: false },
+            B: { R: true, W: true, I: false, D: false },
+          },
+          {
+            A: { R: false, W: false, I: false, D: false },
+            B: { R: true, W: false, I: false, D: false },
+          },
+          {
+            A: { R: true, W: false, I: false, D: true },
+            B: { R: true, W: true, I: true, D: true },
+          },
+          {
+            A: { R: false, W: false, I: false, D: false },
+            B: { R: false, W: false, I: false, D: false },
+          },
+        ],
+        sectorTrailer: [
+          {
+            A: {
+              A: { R: false, W: true },
+              B: { R: false, W: false },
+            },
+            AB: {
+              A: { R: true, W: false },
+              B: { R: false, W: false },
+            },
+            B: {
+              A: { R: true, W: true },
+              B: { R: false, W: false },
+            },
+          },
+          {
+            A: {
+              A: { R: false, W: true },
+              B: { R: false, W: false },
+            },
+            AB: {
+              A: { R: true, W: true },
+              B: { R: false, W: false },
+            },
+            B: {
+              A: { R: true, W: true },
+              B: { R: false, W: false },
+            },
+          },
+          {
+            A: {
+              A: { R: false, W: false },
+              B: { R: false, W: false },
+            },
+            AB: {
+              A: { R: true, W: false },
+              B: { R: false, W: false },
+            },
+            B: {
+              A: { R: true, W: false },
+              B: { R: false, W: false },
+            },
+          },
+          {
+            A: {
+              A: { R: false, W: false },
+              B: { R: false, W: true },
+            },
+            AB: {
+              A: { R: true, W: false },
+              B: { R: true, W: true },
+            },
+            B: {
+              A: { R: false, W: false },
+              B: { R: false, W: true },
+            },
+          },
+          {
+            A: {
+              A: { R: false, W: false },
+              B: { R: false, W: true },
+            },
+            AB: {
+              A: { R: true, W: false },
+              B: { R: true, W: false },
+            },
+            B: {
+              A: { R: false, W: false },
+              B: { R: false, W: true },
+            },
+          },
+          {
+            A: {
+              A: { R: false, W: false },
+              B: { R: false, W: false },
+            },
+            AB: {
+              A: { R: true, W: false },
+              B: { R: true, W: true },
+            },
+            B: {
+              A: { R: false, W: false },
+              B: { R: false, W: false },
+            },
+          },
+          {
+            A: {
+              A: { R: false, W: false },
+              B: { R: false, W: false },
+            },
+            AB: {
+              A: { R: true, W: false },
+              B: { R: true, W: false },
+            },
+            B: {
+              A: { R: false, W: false },
+              B: { R: false, W: false },
+            },
+          },
+          {
+            A: {
+              A: { R: false, W: false },
+              B: { R: false, W: false },
+            },
+            AB: {
+              A: { R: true, W: false },
+              B: { R: true, W: false },
+            },
+            B: {
+              A: { R: false, W: false },
+              B: { R: false, W: false },
+            },
+          },
+        ],
+      };
+
+      function calculatePermissions(c1, c2, c3, isSectorTrailer) {
+        const type = isSectorTrailer ? "sectorTrailer" : "dataBlock";
+        const index = c1 * 4 + c2 * 2 + c3; // Binary to decimal index
+        return rwidRules[type][index];
+      }
+
+      function formatHexWithSpaces(hex) {
+        return hex.match(/.{2}/g).join(" ");
+      }
+
+      function isSectorTrailer(blockIndex) {
+        return (blockIndex + 1) % 4 === 0; // Every 4th block is a sector trailer
+      }
+
+      function calculateAccessBits() {
+        accessBits = data.map((_, index) => {
+          let { c1, c2, c3, c1n, c2n, c3n } = 0;
+          let blockIndex = index % 4;
+          let accessBits = parseInt(
+            data[blockIndex == 3 ? index : index + (3 - blockIndex)].substring(
+              12,
+              18
+            ),
+            16
+          );
+          switch (index % 4) {
+            case 0:
+              c1 = (accessBits & 0x1000) >> 12;
+              c2 = accessBits & 0x1;
+              c3 = (accessBits & 0x10) >> 4;
+              c1n = (accessBits & 0x10000) >> 16;
+              c2n = (accessBits & 0x100000) >> 20;
+              c3n = (accessBits & 0x100) >> 8;
+              break;
+            case 1:
+              c1 = (accessBits & 0x2000) >> 13;
+              c2 = (accessBits & 0x2) >> 1;
+              c3 = (accessBits & 0x20) >> 5;
+              c1n = (accessBits & 0x20000) >> 17;
+              c2n = (accessBits & 0x200000) >> 21;
+              c3n = (accessBits & 0x200) >> 9;
+              break;
+            case 2:
+              c1 = (accessBits & 0x4000) >> 14;
+              c2 = (accessBits & 0x4) >> 2;
+              c3 = (accessBits & 0x40) >> 6;
+              c1n = (accessBits & 0x40000) >> 18;
+              c2n = (accessBits & 0x400000) >> 22;
+              c3n = (accessBits & 0x400) >> 10;
+              break;
+            case 3:
+              c1 = (accessBits & 0x8000) >> 15;
+              c2 = (accessBits & 0x8) >> 3;
+              c3 = (accessBits & 0x80) >> 7;
+              c1n = (accessBits & 0x80000) >> 19;
+              c2n = (accessBits & 0x800000) >> 23;
+              c3n = (accessBits & 0x800) >> 11;
+              break;
+          }
+
+          if ((c1 ^ c1n) == 0 || (c2 ^ c2n) == 0 || (c3 ^ c3n) == 0) {
+            return null;
+          }
+
+          const permissions = calculatePermissions(
+            c1,
+            c2,
+            c3,
+            isSectorTrailer(index)
+          );
+          localStorage.setItem("data", JSON.stringify(data));
+          return permissions;
+        });
+      }
+
+      function renderAccessKeyPermissions(key, permissions) {
+        if (!permissions) return "";
+
+        const rClass = permissions.R ? "allowed" : "denied";
+        const wClass = permissions.W ? "allowed" : "denied";
+        const iClass = permissions.I ? "allowed" : "denied";
+        const dClass = permissions.D ? "allowed" : "denied";
+
+        return `
+                                      <div class="access-key monospace" >
+                                          ${key}:<span class="${rClass}">R</span><span class="${wClass}">W</span><span class="${iClass}">I</span><span class="${dClass}">D</span>
+                                      </div>
+                                  `;
+      }
+
+      function renderAccessBitsPermissions(permissions) {
+        if (!permissions) return "";
+
+        return `
+                    <div class="access-key monospace">
+                                          Key A: <span>R(${
+                                            (permissions.A.A.R
+                                              ? "<a class='allowed'>A</a>"
+                                              : "-") +
+                                            (permissions.A.B.R
+                                              ? "<a class='allowed'>B</a>"
+                                              : "-")
+                                          })</span><span>W(${
+          (permissions.A.A.W ? "<a class='allowed'>A</a>" : "-") +
+          (permissions.A.B.W ? "<a class='allowed'>B</a>" : "-")
+        })</span><br>
+                                          Key B: <span>R(${
+                                            (permissions.B.A.R
+                                              ? "<a class='allowed'>A</a>"
+                                              : "-") +
+                                            (permissions.B.B.R
+                                              ? "<a class='allowed'>B</a>"
+                                              : "-")
+                                          })</span><span>W(${
+          (permissions.B.A.W ? "<a class='allowed'>A</a>" : "-") +
+          (permissions.B.B.W ? "<a class='allowed'>B</a>" : "-")
+        })</span><br>
+                                          Access Bits: <span>R(${
+                                            (permissions.AB.A.R
+                                              ? "<a class='allowed'>A</a>"
+                                              : "-") +
+                                            (permissions.AB.B.R
+                                              ? "<a class='allowed'>B</a>"
+                                              : "-")
+                                          })</span><span class="${
+          permissions.AB.A.W || permissions.AB.B.W ? "" : "malformed"
+        }">W(${
+          (permissions.AB.A.W ? "<a class='allowed'>A</a>" : "-") +
+          (permissions.AB.B.W ? "<a class='allowed'>B</a>" : "-")
+        }) </span></div>`;
+      }
+
+      function renderAccessBits(index) {
+        const access = accessBits[index];
+        if (access == null) {
+          console.log(access);
+          return `
+                                      <div class="access-key monospace">
+                                          <span class="malformed">Invalid access bits</span>
+                                      </div>
+                                  `;
+        }
+        const elements = [];
+        if (index % 4 == 3) {
+          elements.push(renderAccessBitsPermissions(access));
+        } else {
+          elements.push(renderAccessKeyPermissions("Key A", access.A));
+          elements.push(renderAccessKeyPermissions("Key B", access.B));
+        }
+
+        return elements.join("");
+      }
+
+      function checkInput(index, value) {
+        let input = onInput(value);
+        $(`[data-block="${index}"]`).val(input);
+        data[index] = input.replace(/\s/g, "");
+
+        calculateAccessBits();
+        updateAccessBitsDisplay();
+      }
+
+      function initializeDisplay() {
+        let html = "";
+        for (let i = 0; i < blockCount; i++) {
+          html += `
+                                          <div class="block-row">
+                                              <div class="row align-items-center">
+                                                  <div class="col-md-2">
+                                                      <strong class="monospace ${data[i].includes('?')?"malformed":""} ">Block ${i}</strong>
+                                                  </div>
+                                                  <div class="col-md-6">
+                                                      <input type="text"
+                                                             class="form-control monospace block-content ${data[i].includes('?')?"malformed":""}"
+                                                             data-block="${i}"
+                                                             value="${data[i]}"
+                                                             onchange="checkInput(${i}, this.value)"
+                                                             maxlength="47"
+                                                             pattern="[0-9A-Fa-f \?]{47}">
+                                                  </div>
+                                                  <div class="col-md-4 access-bits" data-access-block="${i}">
+                                                      <!-- Access bits rendered here -->
+                                                      ${renderAccessBits(i)}
+                                                  </div>
+                                              </div>
+                                          </div>
+                                      `;
+        }
+        $("#mifare-content").html(html);
+      }
+
+      function updateAccessBitsDisplay() {
+        for (let i = 0; i < blockCount; i++) {
+          const accessHtml = renderAccessBits(i);
+          $(`[data-access-block="${i}"]`).html(accessHtml);
+        }
+      }
+
+      $(".block-content").on("input", function () {
+        $(this).val(onInput($(this).val()));
+      });
+
+      function onInput(input) {
+        let value = input
+          .toUpperCase()
+          .replace(/[^0-9A-F ]/g, "")
+          .replace(/\s+/g, "")
+          // .replace(/(.{2})/g, "$1 ")
+          .trim();
+
+        const rawHex = value.replace(/\s/g, "");
+        if (rawHex.length < 32) {
+          value = (rawHex + "0".repeat(32 - rawHex.length))
+            // .replace(/(.{2})/g, "\$1 ")
+            .trim();
+        }
+
+        return value;
+      }
+
+      function uploadFzNfcDump() {
+        var input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".nfc";
+
+        input.onchange = (e) => {
+          var file = e.target.files[0];
+          file.text().then((text) => {
+            text.split("\n").map((line) => {
+              let m = /Block (\d{1,2}): ([0-9A-F\? ]+)/.exec(line);
+              if (m != null && m.length == 3) {
+                data[parseInt(m[1])] = m[2].replace(/\s/g, "");
+              }
+            });
+            calculateAccessBits();
+            initializeDisplay();
+          });
+        };
+
+        input.click();
+      }
+      function uploadMctDump() {
+        var input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".mct";
+
+        input.onchange = (e) => {
+          var file = e.target.files[0];
+          file.text().then((text) => {
+            let i = 0;
+            text.split("\n").map((line) => {
+              let m = /([0-9A-F]{32})/.exec(line);
+              console.log(m);
+              if (m != null && m.length == 2) {
+                data[i++] = m[1];
+              }
+            });
+            calculateAccessBits();
+            initializeDisplay();
+          });
+        };
+
+        input.click();
+      }
+
+      function downloadFzNfcDump() {
+        let alertAB = false;
+        for (let i = 3; i < 64; i += 4) {
+          if (!(accessBits[i].AB.A.W || accessBits[i].AB.B.W)) {
+            alertAB = true;
+          }
+        }
+        if (alertAB) {
+          alert(
+            "Warning: Access bits for card will NOT be WRITABLE, be careful!"
+          );
+        }
+
+        strings = `Filetype: Flipper NFC device
+Version: 4
+# Device type can be ISO14443-3A, ISO14443-3B, ISO14443-4A, ISO14443-4B, ISO15693-3, FeliCa, NTAG/Ultralight, Mifare Classic, Mifare Plus, Mifare DESFire, SLIX, ST25TB, EMV
+Device type: Mifare Classic
+# UID is common for all formats
+UID: ${formatHexWithSpaces(data[0].substring(0, 8))}
+# ISO14443-3A specific data
+ATQA: 00 04
+SAK: 08
+# Mifare Classic specific data
+Mifare Classic type: 1K
+Data format version: 2
+# Mifare Classic blocks, '??' means unknown data\n`;
+        for (let j = 0; j < 64; j++) {
+          strings += `Block ${j}: ${formatHexWithSpaces(data[j])}\n`;
+        }
+        downloadTextFile(`${data[0].substring(0, 8)}-dump.nfc`, strings);
+      }
+
+      function downloadMctDump() {
+        let alertAB = false;
+        for (let i = 0; i < 64; i++) {
+          if (i % 4 == 3 && !(accessBits[i].AB.A.W || accessBits[i].AB.B.W)) {
+            alertAB = true;
+          }
+
+          if (data[i].includes("?")) {
+            alert(
+              "Warning: Some blocks have unknown data, please correct them before downloading dump!"
+            );
+            return;
+          }
+        }
+        if (alertAB) {
+          alert(
+            "Warning: Access bits for card will NOT be WRITABLE, be careful!"
+          );
+        }
+
+        strings = ``;
+        for (let j = 0; j < 64; j++) {
+          if (j % 4 == 0) {
+            strings += `+Sector: ${j / 4}\n`;
+          }
+          strings += `${data[j]}\n`;
+        }
+        downloadTextFile(`${data[0].substring(0, 8)}-dump.mct`, strings);
+      }
+      function downloadMctKey() {
+        let alertAB = false;
+        for (let i = 3; i < 63; i+=4) {
+          if (data[i].includes("?")) {
+            alert(
+              "Warning: Some keys have unknown data, please correct them before downloading dump!"
+            );
+            return;
+          }
+        }
+
+        aKeys = "";
+        bKeys = "";
+        
+        for (let j = 3; j < 64; j += 4) {
+          aKeys += `${data[j].substring(0,12)}\n`;
+          bKeys += `${data[j].substring(20,32)}\n`;
+        }
+        downloadBinFile(`${data[0].substring(0, 8)}-key.bin`, aKeys+bKeys);
+      }
+      function downloadTextFile(filename, textData) {
+        const node = Object.assign(document.createElement("a"), {
+          href: `data:text/plain;charset=utf-8,${encodeURIComponent(
+            textData
+          )}`,
+          download: filename,
+          style: "display: none",
+        });
+        document.body.appendChild(node);
+        node.click();
+        document.body.removeChild(node);
+      }
+      function downloadBinFile(filename, textData) {
+        const node = Object.assign(document.createElement("a"), {
+          href: `data:application/octet-stream;base64,${hexToBase64(
+            textData
+          )}`,
+          download: filename,
+          style: "display: none",
+        });
+        document.body.appendChild(node);
+        node.click();
+        document.body.removeChild(node);
+      }
+
+      function hexToBase64(hexstring) {
+        return btoa(
+          hexstring
+            .match(/\w{2}/g)
+            .map(function (a) {
+              return String.fromCharCode(parseInt(a, 16));
+            })
+            .join("")
+        );
+      }
+    </script>
+  </body>
+</html>
